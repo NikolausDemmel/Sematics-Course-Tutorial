@@ -6,11 +6,11 @@ subsection "Arithmetic Expressions"
 
 types
   name = nat --"For simplicity in examples"
-  state = "name \<Rightarrow> nat"
+  state = "name => nat"
 
 datatype aexp = N nat | V name | Plus aexp aexp
 
-fun aval :: "aexp \<Rightarrow> state \<Rightarrow> nat" where
+fun aval :: "aexp => state => nat" where
 "aval (N n) _ = n" |
 "aval (V x) st = st x" |
 "aval (Plus e\<^isub>1 e\<^isub>2) st = aval e\<^isub>1 st + aval e\<^isub>2 st"
@@ -23,13 +23,13 @@ subsection "Optimization"
 
 text{* Evaluate constant subsexpressions: *}
 
-fun asimp_const :: "aexp \<Rightarrow> aexp" where
+fun asimp_const :: "aexp => aexp" where
 "asimp_const (N n) = N n" |
 "asimp_const (V x) = V x" |
 "asimp_const (Plus e1 e2) =
   (case (asimp_const e1, asimp_const e2) of
-    (N n1, N n2) \<Rightarrow> N(n1+n2) |
-    (e1',e2') \<Rightarrow> Plus e1' e2')"
+    (N n1, N n2) => N(n1+n2) |
+    (e1',e2') => Plus e1' e2')"
 
 theorem aval_asimp_const[simp]:
   "aval (asimp_const a) st = aval a st"
@@ -40,7 +40,7 @@ done
 text{* Now we also eliminate all occurrences 0 in additions. The standard
 method: optimized versions of the constructors: *}
 
-fun plus :: "aexp \<Rightarrow> aexp \<Rightarrow> aexp" where
+fun plus :: "aexp => aexp => aexp" where
 "plus (N 0) e = e" |
 "plus e (N 0) = e" |
 "plus (N n1) (N n2) = N(n1+n2)" |
@@ -52,7 +52,7 @@ apply(induct e1 e2 rule: plus.induct)
 apply simp_all (* just for a change from auto *)
 done
 
-fun asimp :: "aexp \<Rightarrow> aexp" where
+fun asimp :: "aexp => aexp" where
 "asimp (N n) = N n" |
 "asimp (V x) = V x" |
 "asimp (Plus e1 e2) = plus (asimp e1) (asimp e2)"
