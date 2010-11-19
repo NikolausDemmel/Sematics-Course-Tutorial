@@ -57,7 +57,7 @@ subsection "Part (c)"
 
 (* Returns True is a variable is free in a given expression *)
 fun is_free :: "name => lexp => bool" where
-"is_free _ (N n) = True" |
+"is_free _ (N n) = False" |
 "is_free v (V x) = (v = x)" |
 "is_free v (Plus e1 e2) = (is_free v e1 | is_free v e2)" |
 "is_free v (Let x e1 e2) = (is_free v e1 | ((~ v = x) & is_free v e2))"
