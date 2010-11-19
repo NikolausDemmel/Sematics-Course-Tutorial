@@ -65,7 +65,7 @@ fun is_free :: "name => lexp => bool" where
 (* Updating non-free variabels in the state does never change the outcome. *)
 (* I found it was essential to use the ==> implication instead of -->,
    otherwise simp (called by auto) would hang on the 3rd subgoal. *) 
-lemma not_free_vars: "~ is_free x e ==> (lval e st = lval e (st(x := n)))" 
+lemma not_free_vars: "~ is_free x e ==>  (lval e (st(x := n))) = lval e st" 
 apply (induct e arbitrary: st) 
 apply auto 
 apply (metis fun_upd_twist fun_upd_upd)
