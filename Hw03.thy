@@ -76,7 +76,7 @@ fun lsimp :: "lexp => lexp" where
 "lsimp (N n) = (N n)" |
 "lsimp (V v) = (V v)" |
 "lsimp (Plus e1 e2) = Plus (lsimp e1) (lsimp e2)" |
-"lsimp (Let x e1 e2) = (if is_free x e2 then (Let x e1 e2) else e2)"
+"lsimp (Let x e1 e2) = (if is_free x e2 then (Let x (lsimp e1) (lsimp e2)) else (lsimp e2))"
 
 (* With our lemma it is now simple to prove, that the optimization is correct *)
 theorem "lval (lsimp e) st = lval e st"
