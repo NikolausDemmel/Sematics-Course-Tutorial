@@ -1,0 +1,8 @@
+ * Unicode tokes
+   * input
+ * fonts / fontlock mode 
+ * permanent options
+ * list functions
+ * list predicates
+ * display ?thesis -> shortcut
+ * auto completion
