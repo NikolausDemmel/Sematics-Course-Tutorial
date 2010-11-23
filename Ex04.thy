@@ -1,4 +1,4 @@
-header "Excercise Sheet 4"
+header "Excercise Sheet 4 - Nikolaus Demmel"
 
 theory Ex04
 imports Inductive_Demo
