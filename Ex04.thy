@@ -36,6 +36,8 @@ palin0: "palindrome []" |
 palin1: "palindrome [_]" |
 palin_step: "palindrome xs ==> palindrome (a # xs @ [a])" 
 
+declare palindrome.intros[simp]
+
 lemma palindrome_rev: "palindrome xs <-> (rev xs = xs)"
 proof 
   assume "palindrome xs"
@@ -46,61 +48,23 @@ next
   assume "rev xs = xs"
   then
   show "palindrome xs"
-    proof (induct xs rule: length_induct)
-      fix xs :: "nat list"
-      assume rev: "rev xs = xs"
-      assume IH: "\<forall> ys. length ys < length xs \<longrightarrow> rev ys = ys \<longrightarrow> palindrome ys"
+  proof (induct xs rule: length_induct)
+    fix xs :: "nat list"
+    assume rev: "rev xs = xs"
+    assume IH: "\<forall> ys. length ys < length xs \<longrightarrow> rev ys = ys \<longrightarrow> palindrome ys"
     
-      have "xs = [] | (EX a. xs = [a]) | (EX a b zs. xs = a # zs @ [b])"
-        by (metis append_butlast_last_id drop_0 drop_Suc_conv_tl length_greater_0_conv)
-
-      {
-        fix a b zs assume xs: "xs = a # zs @ [b]"
-        from rev have "a = b"
-          apply (simp only: xs )
-          apply (simp only: rev.simps rev_append append.simps)
-          by (metis list.inject)
-          
-          show "palindrome xs"
-
-
-
-
-end
-
-
----- stuff from tutorial
-
-lemma "palindrome xs \<longleftrightarrow> rev xs = xs"
-proof
- assume "palindrome xs"
- then
- show "rev xs = xs"
-   by (induct xs rule: palindrome.induct) auto
-next
- assume "rev xs = xs"
- then
- show "palindrome xs"
- proof (induct xs rule: length_induct)
-   fix xs :: "nat list"
-   assume rev: "rev xs = xs"
-   assume IH: "\<forall>ys. length ys < length xs 
-    \<longrightarrow> rev ys = ys \<longrightarrow> palindrome ys"
-
-   have "xs = [] \<or> (\<exists>a. xs = [a]) \<or> (\<exists>a b zs. xs = a # zs @ [b])"
-     by (metis append_butlast_last_id append_eq_Cons_conv rev.simps(2) rev_swap)
-
-   {
-     fix a b zs assume xs: "xs = a # zs @ [b]"
-     from rev
-     have "a = b"
-       apply (simp only: xs)
-       apply (simp only: rev.simps rev_append append.simps)
-       by (metis list.inject)
-
-
-
-
-   show "palindrome xs"
+    have "xs = [] \<or> (\<exists> a. xs = [a]) \<or> (\<exists> a b zs. xs = a # zs @ [b])"
+      by (metis append_butlast_last_id drop_0 drop_Suc_conv_tl length_greater_0_conv)
+    moreover
+    {
+      fix a b zs assume xs: "xs = a # zs @ [b]"
+      from rev have "a = b"
+        by (simp only: xs rev.simps rev_append append.simps) (metis list.inject)
+      have "palindrome xs" using rev IH xs `a = b` by simp
+    }
+    ultimately
+    show "palindrome xs" by auto
+  qed
+qed
 
 end
