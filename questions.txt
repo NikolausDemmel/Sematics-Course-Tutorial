@@ -1,4 +1,4 @@
- * Unicode tokes
+ * Unicode tokens
    * input
  * fonts / fontlock mode 
  * permanent options
