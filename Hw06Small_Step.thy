@@ -17,8 +17,12 @@ Semi2:   "(c\<^isub>1,s) \<rightarrow> (c\<^isub>1',s') \<Longrightarrow> (c\<^i
 IfTrue:  "bval b s \<Longrightarrow> (IF b THEN c\<^isub>1 ELSE c\<^isub>2,s) \<rightarrow> (c\<^isub>1,s)" |
 IfFalse: "\<not>bval b s \<Longrightarrow> (IF b THEN c\<^isub>1 ELSE c\<^isub>2,s) \<rightarrow> (c\<^isub>2,s)" |
 
-While:   "(WHILE b DO c,s) \<rightarrow> (IF b THEN c; WHILE b DO c ELSE SKIP,s)"
+While:   "(WHILE b DO c,s) \<rightarrow> (IF b THEN c; WHILE b DO c ELSE SKIP,s)" |
 
+(* BEGIN MODIFIED *)
+Or1:     "(c1 OR c2,s) \<rightarrow> (c1,s)" |
+Or2:     "(c1 OR c2,s) \<rightarrow> (c2,s)"
+(* END MODIFIED *)
 
 inductive
   small_steps :: "com * state \<Rightarrow> com * state \<Rightarrow> bool"  (infix "\<rightarrow>*" 55)  where
@@ -36,21 +40,15 @@ inductive execl :: "com \<Rightarrow> nat list \<Rightarrow> com \<Rightarrow> n
 
 code_pred execl .
 
-values "{(c',t) . execl (0 ::= V 2; 1 ::= V 0) [3,7,5] c' t}"
-
+(* BEGIN MODIFIED *)
+values "{(c',t) . execl (0 ::= V 2 OR 1 ::= V 0) [3,7,5] c' t}"
+(* END MODIFIED *)
 
 subsection{* Proof infrastructure *}
 
 subsubsection{* Induction rules *}
 
-text{* The default induction rule @{thm[source] small_step.induct} only works
-for lemmas of the form @{text"a \<rightarrow> b \<Longrightarrow> \<dots>"} where @{text a} and @{text b} are
-not already pairs @{text"(DUMMY,DUMMY)"}. We can generate a suitable variant
-of @{thm[source] small_step.induct} for pairs by ``splitting'' the arguments
-@{text"\<rightarrow>"} into pairs: *}
 lemmas small_step_induct = small_step.induct[split_format(complete)]
-
-text{* Similarly for @{text"\<rightarrow>*"}: *}
 lemmas small_steps_induct = small_steps.induct[split_format(complete)]
 
 subsubsection{* Proof automation *}
@@ -87,14 +85,10 @@ inductive_cases SemiE[elim]: "(c1;c2,s) \<rightarrow> ct"
 thm SemiE
 inductive_cases IfE[elim!]: "(IF b THEN c1 ELSE c2,s) \<rightarrow> ct"
 inductive_cases WhileE[elim]: "(WHILE b DO c, s) \<rightarrow> ct"
-
-
-text{* A simple property: *}
-lemma deterministic:
-  "cs \<rightarrow> cs' \<Longrightarrow> cs \<rightarrow> cs'' \<Longrightarrow> cs''=cs'"
-apply(induct arbitrary: cs'' rule: small_step.induct)
-apply blast+
-done
+(* BEGIN MODIFIED *)
+inductive_cases OrE[elim!]: "(c1 OR c2, s) \<rightarrow> ct"
+thm OrE
+(* END MODIFIED *)
 
 
 subsection "Equivalence with big-step semantics"
@@ -157,6 +151,18 @@ next
   also have "(?if, s) \<rightarrow> (c; ?w, s)" by (simp add: b)
   also have "(c; ?w,s) \<rightarrow>* (SKIP,t)" by(rule semi_comp[OF c w])
   finally show "(WHILE b DO c,s) \<rightarrow>* (SKIP,t)" by auto
+(* BEGIN MODIFIED *)
+next
+  fix c1 c2 s s'
+  assume c1: "(c1, s) \<rightarrow>* (SKIP, s')"
+  have "(c1 OR c2, s) \<rightarrow> (c1, s)" by simp
+  from this c1 show "(c1 OR c2, s) \<rightarrow>* (SKIP, s')" by (rule step)
+next
+  fix c1 c2 s s'
+  assume c2: "(c2, s) \<rightarrow>* (SKIP, s')"
+  have "(c1 OR c2, s) \<rightarrow> (c2, s)" by simp
+  from this c2 show "(c1 OR c2, s) \<rightarrow>* (SKIP, s')" by (rule step)
+(* END MODIFIED *)
 qed
 
 text{* Each case of the induction can be proved automatically: *}
@@ -179,6 +185,14 @@ next
   thus ?case
     by(metis While semi_comp small_step.IfTrue step[of "(a,b)",standard])
 (* FIXME metis cannot find the proof w/o at least one pair in step *)
+(* BEGIN MODIFIED *)
+next
+  case Or1
+  thus ?case by (blast intro: step)
+next
+  case Or2
+  thus ?case by (blast intro: step)
+(* END MODIFIED *)
 qed
 
 lemma small1_big_continue:
@@ -203,30 +217,5 @@ theorem big_iff_small:
   "cs \<Rightarrow> t = cs \<rightarrow>* (SKIP,t)"
 by(metis big_to_small small_to_big)
 
-
-subsection "Final configurations and infinite reductions"
-
-definition "final cs \<longleftrightarrow> \<not>(EX cs'. cs \<rightarrow> cs')"
-
-lemma finalD: "final (c,s) \<Longrightarrow> c = SKIP"
-apply(simp add: final_def)
-apply(induct c)
-apply blast+
-done
-
-lemma final_iff_SKIP: "final (c,s) = (c = SKIP)"
-by (metis SkipE finalD final_def)
-
-text{* Now we can show that @{text"\<Rightarrow>"} yields a final state iff @{text"\<rightarrow>"}
-terminates: *}
-
-lemma big_iff_small_termination:
-  "(EX t. cs \<Rightarrow> t) \<longleftrightarrow> (EX cs'. cs \<rightarrow>* cs' \<and> final cs')"
-by(simp add: big_iff_small final_iff_SKIP)
-
-text{* This is the same as saying that the absence of a big step result is
-equivalent with absence of a terminating small step sequence, i.e.\ with
-nontermination.  Since @{text"\<rightarrow>"} is determininistic, there is no difference
-between may and must terminate. *}
 
 end

@@ -10,5 +10,8 @@ datatype
       | Semi   com  com          ("_; _"  [60, 61] 60)
       | If     bexp com com     ("IF _ THEN _ ELSE _"  [0, 0, 61] 61)
       | While  bexp com         ("WHILE _ DO _"  [0, 61] 61)
+(* begin modified *)
+      | Or     com com          ("_ OR _" [60, 61] 60)
+(* end modified *)
 
 end
