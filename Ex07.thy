@@ -1,17 +1,16 @@
-(* Author: Tobias Nipkow *)
+header "Semantics sheet 7 tutorial - Nikolaus Demmel"
 
-header "A Compiler for IMP"
-
-theory Compiler imports Big_Step
+theory Ex07 imports Big_Step
 begin
 
 subsection "Instructions and Stack Machine"
 
 datatype instr = 
-  PUSH_N nat | PUSH_V nat | ADD |
+  PUSH_N nat | PUSH_V nat | ADD | LESS | AND | NOT |
   STORE nat |
   JMPF nat |
   JMPB nat |
+  JMPFZ nat |
   JMPFLESS nat |
   JMPFGE nat
 
@@ -31,12 +30,20 @@ where
  P \<turnstile> (i,s,stk) \<rightarrow> (i+1,s, s x # stk)" |
 "\<lbrakk> i < size P;  P!i = ADD \<rbrakk> \<Longrightarrow> 
  P \<turnstile> (i,s,stk) \<rightarrow> (i+1,s, (hd2 stk + hd stk) # tl2 stk)" |
+"\<lbrakk> i < size P;  P!i = LESS \<rbrakk> \<Longrightarrow> 
+ P \<turnstile> (i,s,stk) \<rightarrow> (i+1,s, (if (hd2 stk < hd stk) then 1 else 0) # tl2 stk)" |
+"\<lbrakk> i < size P;  P!i = AND \<rbrakk> \<Longrightarrow> 
+ P \<turnstile> (i,s,stk) \<rightarrow> (i+1,s, (if (hd2 stk > 0) \<and> (hd stk > 0) then 1 else 0) # tl2 stk)" |
+"\<lbrakk> i < size P;  P!i = NOT \<rbrakk> \<Longrightarrow> 
+ P \<turnstile> (i,s,stk) \<rightarrow> (i+1,s, (if hd stk > 0 then 0 else 1) # tl stk)" |
 "\<lbrakk> i < size P;  P!i = STORE n \<rbrakk> \<Longrightarrow>
  P \<turnstile> (i,s,stk) \<rightarrow> (i+1,s(n := hd stk),tl stk)" |
 "\<lbrakk> i < size P;  P!i = JMPF n \<rbrakk> \<Longrightarrow>
  P \<turnstile> (i,s,stk) \<rightarrow> (i+1+n,s,stk)" |
 "\<lbrakk> i < size P;  P!i = JMPB n;  n \<le> i+1 \<rbrakk> \<Longrightarrow>
  P \<turnstile> (i,s,stk) \<rightarrow> (i+1-n,s,stk)" |
+"\<lbrakk> i < size P;  P!i = JMPFZ n \<rbrakk> \<Longrightarrow>
+ P \<turnstile> (i,s,stk) \<rightarrow> (if hd stk = 0 then i+1+n else i+1,s,tl stk)" |
 "\<lbrakk> i < size P;  P!i = JMPFLESS n \<rbrakk> \<Longrightarrow>
  P \<turnstile> (i,s,stk) \<rightarrow> (if hd2 stk < hd stk then i+1+n else i+1,s,tl2 stk)" |
 "\<lbrakk> i < size P;  P!i = JMPFGE n \<rbrakk> \<Longrightarrow>
@@ -156,7 +163,7 @@ subsection "Compilation"
 fun acomp :: "aexp \<Rightarrow> instr list" where
 "acomp (N n) = [PUSH_N n]" |
 "acomp (V n) = [PUSH_V n]" |
-"acomp (Plus a\<^isub>1 a\<^isub>2) = acomp a\<^isub>1 @ acomp a\<^isub>2 @ [ADD]"
+"acomp (Plus a1 a2) = acomp a1 @ acomp a2 @ [ADD]"
 
 lemma acomp_correct[intro]:
   "acomp a \<turnstile> (0,s,stk) \<rightarrow>* (size(acomp a),s,aval a s#stk)"
@@ -164,41 +171,30 @@ apply(induct a arbitrary: stk)
 apply(fastsimp)+
 done
 
-fun bcomp :: "bexp \<Rightarrow> bool \<Rightarrow> nat \<Rightarrow> instr list" where
-"bcomp (B v) c n = (if v=c then [JMPF n] else [])" |
-"bcomp (Not b) c n = bcomp b (\<not>c) n" |
-"bcomp (And b\<^isub>1 b\<^isub>2) c n =
- (let cb\<^isub>2 = bcomp b\<^isub>2 c n;
-      m = (if c then size cb\<^isub>2 else size cb\<^isub>2+n);
-      cb\<^isub>1 = bcomp b\<^isub>1 False m
-  in cb\<^isub>1 @ cb\<^isub>2)" |
-"bcomp (Less a\<^isub>1 a\<^isub>2) c n =
- acomp a\<^isub>1 @ acomp a\<^isub>2 @ (if c then [JMPFLESS n] else [JMPFGE n])"
+fun bcomp :: "bexp \<Rightarrow> instr list" where
+"bcomp (B True) = [PUSH_N 1]" |
+"bcomp (B False) = [PUSH_N 0]" |
+"bcomp (Not b) = bcomp b @ [NOT]" |
+"bcomp (And b1 b2) = bcomp b1 @ bcomp b2 @ [AND]" |
+"bcomp (Less a1 a2) = acomp a1 @ acomp a2 @ [LESS]"
 
-value "bcomp (And (Less (V 0) (V 1)) (Not(Less (V 2) (V 3)))) False 3"
+value "bcomp (And (Less (V 0) (V 1)) (Not(Less (V 2) (V 3)))) "
 
 lemma bcomp_correct[intro]:
- "bcomp b c n \<turnstile>
- (0,s,stk)  \<rightarrow>*  (size(bcomp b c n) + (if c = bval b s then n else 0),s,stk)"
-proof(induct b arbitrary: c n m)
-  case Not
-  from Not[of "~c"] show ?case by fastsimp
-next
-  case (And b1 b2)
-  from And(1)[of "False"] And(2)[of "c"] show ?case by fastsimp
-qed fastsimp+
+ "bcomp b \<turnstile> (0,s,stk) \<rightarrow>* (size(bcomp b),s,(if bval b s then 1 else 0)#stk)"
+by (induct b arbitrary: stk) fastsimp+
 
 
 fun ccomp :: "com \<Rightarrow> instr list" where
 "ccomp SKIP = []" |
 "ccomp (x ::= a) = acomp a @ [STORE x]" |
-"ccomp (c\<^isub>1;c\<^isub>2) = ccomp c\<^isub>1 @ ccomp c\<^isub>2" |
-"ccomp (IF b THEN c\<^isub>1 ELSE c\<^isub>2) =
-  (let cc\<^isub>1 = ccomp c\<^isub>1; cc\<^isub>2 = ccomp c\<^isub>2; cb = bcomp b False (size cc\<^isub>1 + 1)
-   in cb @ cc\<^isub>1 @ JMPF(size cc\<^isub>2) # cc\<^isub>2)" |
+"ccomp (c1;c2) = ccomp c1 @ ccomp c2" |
+"ccomp (IF b THEN c1 ELSE c2) =
+  (let cc1 = ccomp c1; cc2 = ccomp c2; cb = bcomp b
+   in cb @ [JMPFZ(size cc1 + 1)] @ cc1 @ [JMPF(size cc2)] @ cc2 )" |
 "ccomp (WHILE b DO c) =
- (let cc = ccomp c; cb = bcomp b False (size cc + 1)
-  in cb @ cc @ [JMPB (size cb + size cc + 1)])"
+ (let cc = ccomp c; cb = bcomp b
+  in cb @ [JMPFZ(size cc + 1)] @ cc @ [JMPB (size cb + size cc + 2)])"
 
 value "ccomp (IF Less (V 4) (N 1) THEN 4 ::= Plus (V 4) (N 1) ELSE 3 ::= V 4)"
 
@@ -206,6 +202,11 @@ value "ccomp (WHILE Less (V 4) (N 1) DO (4 ::= Plus (V 4) (N 1)))"
 
 
 subsection "Preservation of sematics"
+
+thm Cons_eq_append_conv self_append_conv2
+thm append_take_drop_id drop_1_Cons take_1_Cons
+thm append.simps
+thm conjI
 
 lemma ccomp_correct:
   "(c,s) \<Rightarrow> t \<Longrightarrow> ccomp c \<turnstile> (0,s,stk) \<rightarrow>* (size(ccomp c),t,stk)"
@@ -224,13 +225,77 @@ next
 next
   case (WhileTrue b s1 c s2 s3)
   let ?cc = "ccomp c"
-  let ?cb = "bcomp b False (size ?cc + 1)"
+  let ?cb = "bcomp b"
   let ?cw = "ccomp(WHILE b DO c)"
-  have "?cw \<turnstile> (0,s1,stk) \<rightarrow>* (size ?cb + size ?cc,s2,stk)"
+  let ?i = "Suc (size ?cb + size ?cc)"
+  let ?i' = "(size ?cb + 1 + size ?cc)"
+  have "?cw \<turnstile> (0,s1,stk) \<rightarrow>* (size ?cb + 1 + size ?cc,s2,stk)"
     using WhileTrue(1,3) by fastsimp
   moreover
-  have "?cw \<turnstile> (size ?cb + size ?cc,s2,stk) \<rightarrow>* (0,s2,stk)"
-    by (fastsimp)
+  have "?cw \<turnstile> (size ?cb + 1 + size ?cc,s2,stk) \<rightarrow>* (0,s2,stk)"
+  proof -
+    have 0: "size (bcomp b @ JMPFZ (Suc (length (ccomp c))) # ccomp c) = ?i" by simp
+    have 1: "(bcomp b @ JMPFZ (Suc (length (ccomp c))) # ccomp c) = (bcomp b @ [JMPFZ (Suc (length (ccomp c)))] @ ccomp c)" by simp
+    from 0 1 have "?cw ! ?i = JMPB (?i' + 1)" 
+
+    from this have "?cw \<turnstile> (size ?cb + 1 + size ?cc,s2,stk) \<rightarrow> (?i + 1 - Suc ?i,s2,stk)"
+      apply auto
+      
+      proof -
+
+
+.
+
+bcomp b @
+    JMPFZ (Suc (length (ccomp c))) #
+    ccomp c @ [JMPB (Suc (Suc (length (bcomp b) + length (ccomp c))))]
+    \<turnstile> (Suc (length (bcomp b) + length (ccomp c)), s2, stk) \<rightarrow>* (0, s2, stk)
+
+(*
+
+    proof -
+      have "size(bcomp b @ JMPFZ (Suc (length (ccomp c))) # ccomp c) = 
+              (Suc (length (bcomp b) + length (ccomp c)))" by simp
+      moreover
+      from this  have foo: "?cw ! ?i = JMPB (Suc ?i)" sorry
+      moreover
+      have "length ?cw = (Suc (Suc (length (bcomp b) + length (ccomp c))))" by simp
+      ultimately
+      have "ccomp (WHILE b DO c) \<turnstile> (length (bcomp b) + 1 + length (ccomp c), s2, stk) \<rightarrow> (0, s2, stk)" apply (auto simp add: algebra_simps) sorry
+
+      have " ?cw \<turnstile> (?i, s2, stk) \<rightarrow> (?i + 1 - (Suc ?i), s2, stk) "
+       apply (rule exec1.intros(9))
+       apply (auto)
+       apply (rule foo)
+      proof 
+        have "ccomp (WHILE b DO c) ! Suc (length (bcomp b) + length (ccomp c)) =
+    JMPB (Suc (Suc (length (bcomp b) + length (ccomp c))))" by (rule foo)
+        thus ?thesis by auto
+      qed
+        apply (fastsimp add: foo)
+
+        apply 
+        apply auto
+
+        thm exec1.intros(9) 
+        sorry
+      have " foo  \<turnstile> (j, s2, stk) \<rightarrow> (j + 1 - n, s2, stk)"
+       apply (rule exec1.intros(9))
+      show ?thesis apply auto
+
+    bcomp b @
+    JMPFZ (Suc (length (ccomp c))) #
+    ccomp c @ [JMPB (Suc (Suc (length (bcomp b) + length (ccomp c))))]
+    \<turnstile> (Suc (length (bcomp b) + length (ccomp c)), s2, stk) \<rightarrow> ((Suc (length (bcomp b) + length (ccomp c))) + 1 - (Suc (Suc (length (bcomp b) + length (ccomp c)))), s2, stk)
+
+    bcomp b @
+    JMPFZ (Suc (length (ccomp c))) #
+    ccomp c @ [JMPB (Suc (Suc (length (bcomp b) + length (ccomp c))))]
+    \<turnstile> (Suc (length (bcomp b) + length (ccomp c)), s2, stk) \<rightarrow> (0, s2, stk)
+
+
+    apply auto
+    by (fastsimp) *)
   moreover
   have "?cw \<turnstile> (0,s2,stk) \<rightarrow>* (size ?cw,s3,stk)" by(rule WhileTrue(5))
   ultimately show ?case by(blast intro: exec_trans)
