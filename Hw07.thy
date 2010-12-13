@@ -190,10 +190,16 @@ qed fastsimp+
 fun ccomp :: "com \<Rightarrow> instr list" where
 "ccomp SKIP = []" |
 "ccomp (x ::= a) = acomp a @ [STORE x]" |
-"ccomp (c\<^isub>1;c\<^isub>2) = ccomp c\<^isub>1 @ ccomp c\<^isub>2" |
-"ccomp (IF b THEN c\<^isub>1 ELSE c\<^isub>2) =
-  (let cc\<^isub>1 = ccomp c\<^isub>1; cc\<^isub>2 = ccomp c\<^isub>2; cb = bcomp b False (size cc\<^isub>1 + 1)
-   in cb @ cc\<^isub>1 @ JMPF(size cc\<^isub>2) # cc\<^isub>2)" |
+"ccomp (c1;c2) = ccomp c1 @ ccomp c2" |
+(* BEGIN MODIFIED *)
+"ccomp (IF b THEN c1 ELSE c2) =
+  (if c2 = SKIP then
+     (let cc1 = ccomp c1; cb = bcomp b False (size cc1)
+       in cb @ cc1)
+   else
+     (let cc1 = ccomp c1; cc2 = ccomp c2; cb = bcomp b False (size cc1 + 1)
+       in cb @ cc1 @ JMPF(size cc2) # cc2))" |
+(* END MODIFIED *)
 "ccomp (WHILE b DO c) =
  (let cc = ccomp c; cb = bcomp b False (size cc + 1)
   in cb @ cc @ [JMPB (size cb + size cc + 1)])"
@@ -202,6 +208,13 @@ value "ccomp (IF Less (V 4) (N 1) THEN 4 ::= Plus (V 4) (N 1) ELSE 3 ::= V 4)"
 
 value "ccomp (WHILE Less (V 4) (N 1) DO (4 ::= Plus (V 4) (N 1)))"
 
+(* BEGIN MODIFIED *)
+value "ccomp (IF Less (V 7) (N 5) THEN 4 ::= N 3 ELSE SKIP)"
+ (* Without optimization compiles to 
+    [PUSH_V 7, PUSH_N 5, JMPFGE 3, PUSH_N 3, STORE 4, JMPF 0] 
+    With optimization compiles to
+    [PUSH_V 7, PUSH_N 5, JMPFGE 2, PUSH_N 3, STORE 4] *)
+(* END MODIFIED *)
 
 subsection "Preservation of sematics"
 
