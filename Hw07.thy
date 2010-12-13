@@ -1,8 +1,6 @@
-(* Author: Tobias Nipkow *)
+header "Semantics homework sheet 7 - Nikolaus Demmel"
 
-header "A Compiler for IMP"
-
-theory Compiler imports Big_Step
+theory Hw07 imports Big_Step
 begin
 
 subsection "Instructions and Stack Machine"
@@ -156,7 +154,7 @@ subsection "Compilation"
 fun acomp :: "aexp \<Rightarrow> instr list" where
 "acomp (N n) = [PUSH_N n]" |
 "acomp (V n) = [PUSH_V n]" |
-"acomp (Plus a\<^isub>1 a\<^isub>2) = acomp a\<^isub>1 @ acomp a\<^isub>2 @ [ADD]"
+"acomp (Plus a1 a2) = acomp a1 @ acomp a2 @ [ADD]"
 
 lemma acomp_correct[intro]:
   "acomp a \<turnstile> (0,s,stk) \<rightarrow>* (size(acomp a),s,aval a s#stk)"
@@ -167,13 +165,13 @@ done
 fun bcomp :: "bexp \<Rightarrow> bool \<Rightarrow> nat \<Rightarrow> instr list" where
 "bcomp (B v) c n = (if v=c then [JMPF n] else [])" |
 "bcomp (Not b) c n = bcomp b (\<not>c) n" |
-"bcomp (And b\<^isub>1 b\<^isub>2) c n =
- (let cb\<^isub>2 = bcomp b\<^isub>2 c n;
-      m = (if c then size cb\<^isub>2 else size cb\<^isub>2+n);
-      cb\<^isub>1 = bcomp b\<^isub>1 False m
-  in cb\<^isub>1 @ cb\<^isub>2)" |
-"bcomp (Less a\<^isub>1 a\<^isub>2) c n =
- acomp a\<^isub>1 @ acomp a\<^isub>2 @ (if c then [JMPFLESS n] else [JMPFGE n])"
+"bcomp (And b1 b2) c n =
+ (let cb2 = bcomp b2 c n;
+      m = (if c then size cb2 else size cb2+n);
+      cb1 = bcomp b1 False m
+  in cb1 @ cb2)" |
+"bcomp (Less a1 a2) c n =
+ acomp a1 @ acomp a2 @ (if c then [JMPFLESS n] else [JMPFGE n])"
 
 value "bcomp (And (Less (V 0) (V 1)) (Not(Less (V 2) (V 3)))) False 3"
 
