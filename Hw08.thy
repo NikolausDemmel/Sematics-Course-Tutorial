@@ -1,4 +1,6 @@
-theory Type_Inference_Template
+header "Semantics homework sheet 8 - Nikolaus Demmel"
+
+theory Hw08
 imports Types
 begin
 
