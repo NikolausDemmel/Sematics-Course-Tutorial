@@ -19,7 +19,11 @@ inductive taval :: "aexp \<Rightarrow> state \<Rightarrow> val \<Rightarrow> boo
 "taval a\<^isub>1 s (Iv i\<^isub>1) \<Longrightarrow> taval a\<^isub>2 s (Iv i\<^isub>2)
  \<Longrightarrow> taval (Plus a\<^isub>1 a\<^isub>2) s (Iv(i\<^isub>1+i\<^isub>2))" |
 "taval a\<^isub>1 s (Rv r\<^isub>1) \<Longrightarrow> taval a\<^isub>2 s (Rv r\<^isub>2)
- \<Longrightarrow> taval (Plus a\<^isub>1 a\<^isub>2) s (Rv(r\<^isub>1+r\<^isub>2))"
+ \<Longrightarrow> taval (Plus a\<^isub>1 a\<^isub>2) s (Rv(r\<^isub>1+r\<^isub>2))" |
+"\<lbrakk> taval a1 s (Rv r1) ; taval a2 s (Iv i2) \<rbrakk> 
+ \<Longrightarrow> taval (Plus a1 a2) s (Rv (r1 + (real i2)))" |
+"\<lbrakk> taval a1 s (Iv i1) ; taval a2 s (Rv r2) \<rbrakk>
+ \<Longrightarrow> taval (Plus a1 a2) s (Rv ((real i1) + r2))"
 
 inductive_cases [elim!]:
   "taval (Ic i) s v"  "taval (Rc i) s v"
@@ -35,7 +39,9 @@ inductive tbval :: "bexp \<Rightarrow> state \<Rightarrow> bool \<Rightarrow> bo
 "tbval b s bv \<Longrightarrow> tbval (Not b) s (\<not> bv)" |
 "tbval b\<^isub>1 s bv\<^isub>1 \<Longrightarrow> tbval b\<^isub>2 s bv\<^isub>2 \<Longrightarrow> tbval (And b\<^isub>1 b\<^isub>2) s (bv\<^isub>1 & bv\<^isub>2)" |
 "taval a\<^isub>1 s (Iv i\<^isub>1) \<Longrightarrow> taval a\<^isub>2 s (Iv i\<^isub>2) \<Longrightarrow> tbval (Less a\<^isub>1 a\<^isub>2) s (i\<^isub>1 < i\<^isub>2)" |
-"taval a\<^isub>1 s (Rv r\<^isub>1) \<Longrightarrow> taval a\<^isub>2 s (Rv r\<^isub>2) \<Longrightarrow> tbval (Less a\<^isub>1 a\<^isub>2) s (r\<^isub>1 < r\<^isub>2)"
+"taval a\<^isub>1 s (Rv r\<^isub>1) \<Longrightarrow> taval a\<^isub>2 s (Rv r\<^isub>2) \<Longrightarrow> tbval (Less a\<^isub>1 a\<^isub>2) s (r\<^isub>1 < r\<^isub>2)" |
+"taval a1 s (Rv r1) \<Longrightarrow> taval a2 s (Iv i2) \<Longrightarrow> tbval (Less a1 a2) s (r1 < (real i2))" |
+"taval a1 s (Iv i1) \<Longrightarrow> taval a2 s (Rv r2) \<Longrightarrow> tbval (Less a1 a2) s ((real i1) < r2)"
 
 subsection "Syntax of Commands"
 (* a copy of Com.thy - keep in sync! *)
@@ -46,6 +52,7 @@ datatype
       | Semi   com  com          ("_; _"  [60, 61] 60)
       | If     bexp com com     ("IF _ THEN _ ELSE _"  [0, 0, 61] 61)
       | While  bexp com         ("WHILE _ DO _"  [0, 61] 61)
+      | DoTimes aexp com        ("DO _ TIMES _" [0, 61] 61)
 
 
 subsection "Small-Step Semantics of Commands"
@@ -61,7 +68,11 @@ Semi2:   "(c\<^isub>1,s) \<rightarrow> (c\<^isub>1',s') \<Longrightarrow> (c\<^i
 IfTrue:  "tbval b s True \<Longrightarrow> (IF b THEN c\<^isub>1 ELSE c\<^isub>2,s) \<rightarrow> (c\<^isub>1,s)" |
 IfFalse: "tbval b s False \<Longrightarrow> (IF b THEN c\<^isub>1 ELSE c\<^isub>2,s) \<rightarrow> (c\<^isub>2,s)" |
 
-While:   "(WHILE b DO c,s) \<rightarrow> (IF b THEN c; WHILE b DO c ELSE SKIP,s)"
+While:   "(WHILE b DO c,s) \<rightarrow> (IF b THEN c; WHILE b DO c ELSE SKIP,s)" |
+
+DoTimes: "(DO a TIMES c,s) \<rightarrow> 
+          (IF (Less (Ic 0) a) THEN c; DO (Plus (Ic -1) a) TIMES c ELSE SKIP ,s)"
+
 
 lemmas small_step_induct = small_step.induct[split_format(complete)]
 
@@ -77,7 +88,9 @@ where
 Ic_ty: "\<Gamma> \<turnstile> Ic i : Ity" |
 Rc_ty: "\<Gamma> \<turnstile> Rc r : Rty" |
 V_ty: "\<Gamma> \<turnstile> V x : \<Gamma> x" |
-Plus_ty: "\<Gamma> \<turnstile> a\<^isub>1 : \<tau> \<Longrightarrow> \<Gamma> \<turnstile> a\<^isub>2 : \<tau> \<Longrightarrow> \<Gamma> \<turnstile> Plus a\<^isub>1 a\<^isub>2 : \<tau>"
+Plus_ty: "\<Gamma> \<turnstile> a\<^isub>1 : \<tau> \<Longrightarrow> \<Gamma> \<turnstile> a\<^isub>2 : \<tau> \<Longrightarrow> \<Gamma> \<turnstile> Plus a\<^isub>1 a\<^isub>2 : \<tau>" |
+Plus_mix1: "\<Gamma> \<turnstile> a1 : Ity \<Longrightarrow> \<Gamma> \<turnstile> a2 : Rty \<Longrightarrow> \<Gamma> \<turnstile> Plus a1 a2 : Rty" |
+Plus_mix2: "\<Gamma> \<turnstile> a1 : Rty \<Longrightarrow> \<Gamma> \<turnstile> a2 : Ity \<Longrightarrow> \<Gamma> \<turnstile> Plus a1 a2 : Rty"
 
 text{* Warning: the ``:'' notation leads to syntactic ambiguities,
 i.e. multiple parse trees, because ``:'' also stands for set membership.
@@ -89,19 +102,24 @@ where
 B_ty: "\<Gamma> \<turnstile> B bv" |
 Not_ty: "\<Gamma> \<turnstile> b \<Longrightarrow> \<Gamma> \<turnstile> Not b" |
 And_ty: "\<Gamma> \<turnstile> b\<^isub>1 \<Longrightarrow> \<Gamma> \<turnstile> b\<^isub>2 \<Longrightarrow> \<Gamma> \<turnstile> And b\<^isub>1 b\<^isub>2" |
-Less_ty: "\<Gamma> \<turnstile> a\<^isub>1 : \<tau> \<Longrightarrow> \<Gamma> \<turnstile> a\<^isub>2 : \<tau> \<Longrightarrow> \<Gamma> \<turnstile> Less a\<^isub>1 a\<^isub>2"
+Less_ty: "\<Gamma> \<turnstile> a\<^isub>1 : \<tau> \<Longrightarrow> \<Gamma> \<turnstile> a\<^isub>2 : \<tau> \<Longrightarrow> \<Gamma> \<turnstile> Less a\<^isub>1 a\<^isub>2" |
+Less_mix1: "\<Gamma> \<turnstile> a\<^isub>1 : Rty \<Longrightarrow> \<Gamma> \<turnstile> a\<^isub>2 : Ity \<Longrightarrow> \<Gamma> \<turnstile> Less a\<^isub>1 a\<^isub>2" |
+Less_mix2: "\<Gamma> \<turnstile> a\<^isub>1 : Ity \<Longrightarrow> \<Gamma> \<turnstile> a\<^isub>2 : Rty \<Longrightarrow> \<Gamma> \<turnstile> Less a\<^isub>1 a\<^isub>2" 
+
 
 inductive ctyping :: "tyenv \<Rightarrow> com \<Rightarrow> bool" (infix "\<turnstile>" 50) where
 Skip_ty: "\<Gamma> \<turnstile> SKIP" |
 Assign_ty: "\<Gamma> \<turnstile> a : \<Gamma>(x) \<Longrightarrow> \<Gamma> \<turnstile> x ::= a" |
 Semi_ty: "\<Gamma> \<turnstile> c\<^isub>1 \<Longrightarrow> \<Gamma> \<turnstile> c\<^isub>2 \<Longrightarrow> \<Gamma> \<turnstile> c\<^isub>1;c\<^isub>2" |
 If_ty: "\<Gamma> \<turnstile> b \<Longrightarrow> \<Gamma> \<turnstile> c\<^isub>1 \<Longrightarrow> \<Gamma> \<turnstile> c\<^isub>2 \<Longrightarrow> \<Gamma> \<turnstile> IF b THEN c\<^isub>1 ELSE c\<^isub>2" |
-While_ty: "\<Gamma> \<turnstile> b \<Longrightarrow> \<Gamma> \<turnstile> c \<Longrightarrow> \<Gamma> \<turnstile> WHILE b DO c"
+While_ty: "\<Gamma> \<turnstile> b \<Longrightarrow> \<Gamma> \<turnstile> c \<Longrightarrow> \<Gamma> \<turnstile> WHILE b DO c" |
+DoTimes_ty: "\<Gamma> \<turnstile> a : Ity \<Longrightarrow> \<Gamma> \<turnstile> c \<Longrightarrow> \<Gamma> \<turnstile> DO a TIMES c"
 
 inductive_cases [elim!]:
   "\<Gamma> \<turnstile> x ::= a"  "\<Gamma> \<turnstile> c1;c2"
   "\<Gamma> \<turnstile> IF b THEN c\<^isub>1 ELSE c\<^isub>2"
   "\<Gamma> \<turnstile> WHILE b DO c"
+  "\<Gamma> \<turnstile> DO a TIMES c"
 
 subsection "Well-typed Programs Do Not Get Stuck"
 
