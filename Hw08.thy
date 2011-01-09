@@ -86,10 +86,45 @@ oops
 
 subsection {* Constraint solving *}
 
-
-fun solve :: "constraints \<Rightarrow> (name * tvar) list \<Rightarrow> (name * tvar) list option"
+(* Assume there are no circular variable assignments *)
+(*fun assigned_type :: "name \<Rightarrow> (name * tvar) list \<Rightarrow> tvar option"
 where
-  "solve _ M = Some M" (* add real definition here *)
+  "assigned_type x M = (case map_of M x of
+     None \<Rightarrow> None
+   | Some (Type t) \<Rightarrow> Some (Type t)
+   | Some (TVar v) \<Rightarrow> Some (" *)
+
+fun assign_type :: "name \<Rightarrow> ty \<Rightarrow> (name * tvar) list \<Rightarrow> (name * tvar) list option"
+where
+  "assign_type x t M =
+     (case (map_of M x) of
+        None \<Rightarrow> None
+      | Some (Type t') \<Rightarrow> (if t' = t then Some M else None)
+      | Some (TVar v) \<Rightarrow> Some (map (\<lambda>(a,b). (a,(if b = (TVar v) then (Type t) else b))) M))"
+
+fun assign_tvar :: "name \<Rightarrow> name \<Rightarrow> (name * tvar) list \<Rightarrow> (name * tvar) list option"
+where
+  "assign_tvar x tv M =
+     (case (map_of M x) of
+        None \<Rightarrow> None
+      | Some (Type t) \<Rightarrow> assign_type tv t M
+      | Some (TVar tv') \<Rightarrow> (case (map_of M tv) of
+          None \<Rightarrow> None
+        | Some (Type t) \<Rightarrow> Some (map (\<lambda>(a,b). (a,(if b = (TVar tv') then (Type t) else b))) M)
+        | Some (TVar tv'') \<Rightarrow> Some (map (\<lambda>(a,b). (a,(if b = (TVar tv') then (TVar tv'') else b))) M)))"
+
+fun solve :: "constraints \<Rightarrow> (name * tvar) list option \<Rightarrow> (name * tvar) list option"
+where
+  "solve _ None = None" |
+  "solve [] X = X" |
+  "solve ((Type t1, Type t2)#C) (Some M) = (if t1 = t2 then solve C (Some M) else None)" |
+  "solve ((Type t, TVar v)#C) (Some M) = solve C (assign_type v t M)" |
+  "solve ((TVar v, Type t)#C) (Some M) = solve C (assign_type v t M)" |
+  "solve ((TVar v1, TVar v2)#C) (Some M) = solve C (assign_tvar v1 v2 M)"
+
+value "ccollect (WHILE (Less (V 0) (V 1)) DO 0 ::= (V 2) ; 2 ::= (Ic 42))"
+value "solve [(TVar 0, TVar (Suc 0)), (TVar 0, TVar 2), (TVar 2, Type Ity)]
+             (Some (map (\<lambda>x. (x, TVar x)) [0,1,2]))"
 
 subsection {* Type inference *}
 
@@ -99,7 +134,7 @@ where
     (let constraints = ccollect c;
          vars = cvars c [];
          init = map (\<lambda>x. (x, TVar x)) vars
-     in solve constraints init)"
+     in solve constraints (Some init))"
 
 subsection {* Specification of type inference *}
 
@@ -124,15 +159,20 @@ lemma type_infer_sound:
 "(case type_infer c of
     None \<Rightarrow> True
   | Some M \<Rightarrow> (instantiate I M \<turnstile> c))"
-(*quickcheck[iterations=200,size=8,report]*)
+quickcheck[iterations=200,size=8,report]
 oops
+
+value "ccollect (WHILE And (B False) (Less (V (Suc 0)) (Ic 0)) DO 0 ::= V (Suc 0))"
+
+value "solve [(TVar (Suc 0), Type Ity), (TVar 0, TVar (Suc 0))]
+             (Some (map (\<lambda>x. (x, TVar x)) [0,1]))"
 
 lemma type_infer_complete:
 "\<Gamma> \<turnstile> c \<longrightarrow>
   (case type_infer c of 
      None \<Rightarrow> False
    | Some M \<Rightarrow> \<Gamma> <: M)"
-(*quickcheck[iterations=200,size=8,report]*)
+quickcheck[iterations=200,size=8,report]
 oops
 
 
