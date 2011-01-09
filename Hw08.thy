@@ -52,13 +52,36 @@ where "\<Gamma> \<Turnstile> (v, v') \<longleftrightarrow> type_of \<Gamma> v = 
 
 subsection {* Constraint generation *}
 
+fun tvar_of :: "aexp \<Rightarrow> tvar"
+where
+  "tvar_of (Ic _) = Type Ity" |
+  "tvar_of (Rc _) = Type Rty" |
+  "tvar_of (V x) = TVar x" |
+  "tvar_of (Plus a1 _) = (tvar_of a1)"
+
+fun acollect :: "aexp \<Rightarrow> constraints"
+where
+  "acollect (Plus a1 a2) = (tvar_of a1, tvar_of a2) # acollect a1 @ acollect a2" |
+  "acollect _ = []"
+
+fun bcollect :: "bexp \<Rightarrow> constraints"
+where
+  "bcollect (B _) = []" |
+  "bcollect (Not b) = bcollect b" |
+  "bcollect (And b1 b2) = bcollect b1 @ bcollect b2" |
+  "bcollect (Less a1 a2) = (tvar_of a1, tvar_of a2) # acollect a1 @ acollect a2" 
+
 fun ccollect :: "com \<Rightarrow> constraints"
 where 
-  "ccollect _ = []" (* add definition here *)
+  "ccollect SKIP = []" |
+  "ccollect (x ::= a) = (TVar x, tvar_of a) # acollect a" |
+  "ccollect (c1 ; c2) = ccollect c1 @ ccollect c2" |
+  "ccollect (IF b THEN c1 ELSE c2) = bcollect b @ ccollect c1 @ ccollect c2" |
+  "ccollect (WHILE b DO c) = bcollect b @ ccollect c"
 
 lemma ccollect_sound_and_complete:
 "\<Gamma> \<turnstile> c \<longleftrightarrow> (\<forall>C \<in> set (ccollect c). \<Gamma> \<Turnstile> C)"
-(* quickcheck[iterations=200,size=8,report] *)
+quickcheck[iterations=200,size=8,report]
 oops
 
 subsection {* Constraint solving *}
