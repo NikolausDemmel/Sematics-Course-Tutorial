@@ -86,13 +86,36 @@ oops
 
 subsection {* Constraint solving *}
 
-(* Assume there are no circular variable assignments *)
-(*fun assigned_type :: "name \<Rightarrow> (name * tvar) list \<Rightarrow> tvar option"
-where
-  "assigned_type x M = (case map_of M x of
-     None \<Rightarrow> None
-   | Some (Type t) \<Rightarrow> Some (Type t)
-   | Some (TVar v) \<Rightarrow> Some (" *)
+(* My type inference works as follows:
+
+We want an variable typing "(name * tvar) list" that is as general as possible
+but still complies with all the constraints given by ccollect. Thus we start
+with the most general variable typing, namely where every variable is assigned
+its own type-variable. This also means that we always have exactly one entry
+for each variable on the variable typing. The case where "map_of M x" should
+thus not occure and we simply process it in an arbitrary way.
+
+We then apply the constraints one-by-one to this variable typing M, while we
+assume some invariants for the association list. If the right hand side of a
+pair in M is a concrete type, this is the determined type and will not
+change. We just have to check for consistancy. If the right hand side of a
+pair in M is a type variable, then this variable belongs to a group of
+variables that must have the same type (according to the constraints processed
+to far). This group can of course consist of only one variable. The invariant
+is, that for such a group of variables, all the right hand sides are equal,
+i.e. they all have the same representative at any point in time. In particular
+for such a group of equal variables none will be concrete yet (otherwise all
+would be concrete).
+
+assign_type takes a constraint for a variable that assigns it a concrete type,
+checks for consistancy or assigns the group of equal variables that this
+variable blongs to the concrete type.
+
+assign_tvar processes variable equality constraints. It either checks for
+consistancy, assigns one of the variables the concrete type of the other, or
+merges their equal variable groups.
+
+*)
 
 fun assign_type :: "name \<Rightarrow> ty \<Rightarrow> (name * tvar) list \<Rightarrow> (name * tvar) list option"
 where
@@ -110,8 +133,8 @@ where
       | Some (Type t) \<Rightarrow> assign_type tv t M
       | Some (TVar tv') \<Rightarrow> (case (map_of M tv) of
           None \<Rightarrow> None
-        | Some (Type t) \<Rightarrow> Some (map (\<lambda>(a,b). (a,(if b = (TVar tv') then (Type t) else b))) M)
-        | Some (TVar tv'') \<Rightarrow> Some (map (\<lambda>(a,b). (a,(if b = (TVar tv') then (TVar tv'') else b))) M)))"
+        | Some tv'' \<Rightarrow> Some (map (\<lambda>(a,b). (a,(if b = (TVar tv') then tv'' else b))) M)))"
+        
 
 fun solve :: "constraints \<Rightarrow> (name * tvar) list option \<Rightarrow> (name * tvar) list option"
 where
@@ -122,10 +145,6 @@ where
   "solve ((TVar v, Type t)#C) (Some M) = solve C (assign_type v t M)" |
   "solve ((TVar v1, TVar v2)#C) (Some M) = solve C (assign_tvar v1 v2 M)"
 
-value "ccollect (WHILE (Less (V 0) (V 1)) DO 0 ::= (V 2) ; 2 ::= (Ic 42))"
-value "solve [(TVar 0, TVar (Suc 0)), (TVar 0, TVar 2), (TVar 2, Type Ity)]
-             (Some (map (\<lambda>x. (x, TVar x)) [0,1,2]))"
-
 subsection {* Type inference *}
 
 fun type_infer :: "com \<Rightarrow> (name * tvar) list option"
@@ -135,6 +154,15 @@ where
          vars = cvars c [];
          init = map (\<lambda>x. (x, TVar x)) vars
      in solve constraints (Some init))"
+
+(* a little bit of testing *)
+value "ccollect (WHILE (Less (V 0) (V 1)) DO 0 ::= (V 2) ; 2 ::= (Ic 42))"
+value "solve [(TVar 0, TVar (Suc 0)), (TVar 0, TVar 2), (TVar 2, Type Ity)]
+             (Some (map (\<lambda>x. (x, TVar x)) [0,1,2]))"
+value "type_infer (WHILE (Less (V 0) (V 1)) DO 0 ::= (V 2) ; 2 ::= (Ic 42))"
+value "type_infer (WHILE (Less (V 0) (V 1)) DO 0 ::= (V 2) ; 3 ::= (Ic 42))"
+value "type_infer (WHILE (Less (V 0) (V 1)) DO 3 ::= (V 2) ; 1 ::= (Ic 42))"
+value "type_infer (WHILE (Less (V 0) (V 1)) DO 3 ::= (V 2) ; 0 ::= (Ic 42))"
 
 subsection {* Specification of type inference *}
 
@@ -159,6 +187,7 @@ lemma type_infer_sound:
 "(case type_infer c of
     None \<Rightarrow> True
   | Some M \<Rightarrow> (instantiate I M \<turnstile> c))"
+quickcheck[iterations=2000,size=5,report]
 quickcheck[iterations=200,size=8,report]
 oops
 
@@ -172,6 +201,7 @@ lemma type_infer_complete:
   (case type_infer c of 
      None \<Rightarrow> False
    | Some M \<Rightarrow> \<Gamma> <: M)"
+quickcheck[iterations=2000,size=5,report]
 quickcheck[iterations=200,size=8,report]
 oops
 
