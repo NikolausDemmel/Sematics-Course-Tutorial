@@ -1,9 +1,11 @@
-theory Big_Step imports Com begin
+(* Author: Gerwin Klein, Tobias Nipkow *)
+
+theory Big_Step imports Com Util begin
 
 subsection "Big-Step Semantics of Commands"
 
 inductive
-  big_step :: "com * state \<Rightarrow> state \<Rightarrow> bool" (infix "\<Rightarrow>" 55)
+  big_step :: "com \<times> state \<Rightarrow> state \<Rightarrow> bool" (infix "\<Rightarrow>" 55)
 where
 Skip:    "(SKIP,s) \<Rightarrow> s" |
 Assign:  "(x ::= a,s) \<Rightarrow> s(x := aval a s)" |
@@ -14,8 +16,6 @@ IfTrue:  "\<lbrakk> bval b s;  (c\<^isub>1,s) \<Rightarrow> t \<rbrakk> \<Longri
          (IF b THEN c\<^isub>1 ELSE c\<^isub>2, s) \<Rightarrow> t" |
 IfFalse: "\<lbrakk> \<not>bval b s;  (c\<^isub>2,s) \<Rightarrow> t \<rbrakk> \<Longrightarrow>
          (IF b THEN c\<^isub>1 ELSE c\<^isub>2, s) \<Rightarrow> t" |
-
-
 
 WhileFalse: "\<not>bval b s \<Longrightarrow> (WHILE b DO c,s) \<Rightarrow> s" |
 WhileTrue:  "\<lbrakk> bval b s\<^isub>1;  (c,s\<^isub>1) \<Rightarrow> s\<^isub>2;  (WHILE b DO c, s\<^isub>2) \<Rightarrow> s\<^isub>3 \<rbrakk> \<Longrightarrow>
@@ -39,17 +39,8 @@ text{* For inductive definitions we need command
 
 values "{t. (SKIP, nth[4]) \<Rightarrow> t}"
 
-text{* We need to translate the result state into a list before we can see
-it. *}
-
-value "[0 ..< 3]"
-
-value "map f [0 ..< 3]"
-
-definition list :: "state \<Rightarrow> nat \<Rightarrow> nat list" where
-"list s n = map s [0 ..< n]"
-
-value "list f 3"
+text{* We need to translate the result state into a list
+to display it. See function @{const list} in @{theory Util}. *}
 
 inductive exec where
 "(c,nth ns) \<Rightarrow> s  \<Longrightarrow>  exec c ns (list s (length ns))"
@@ -81,7 +72,7 @@ thm big_step.induct
 text{* A customized induction rule for (c,s) pairs: *}
 
 lemmas big_step_induct = big_step.induct[split_format(complete)]
-
+thm big_step_induct
 text {*
 @{thm [display] big_step_induct [no_vars]}
 *}
@@ -228,7 +219,7 @@ by blast
 subsection "Execution is deterministic"
 
 text {* This proof is automatic. *}
-theorem "\<lbrakk> (c,s) \<Rightarrow> t; (c,s) \<Rightarrow> u \<rbrakk> \<Longrightarrow> u = t"
+theorem big_step_determ: "\<lbrakk> (c,s) \<Rightarrow> t; (c,s) \<Rightarrow> u \<rbrakk> \<Longrightarrow> u = t"
 apply (induct arbitrary: u rule: big_step.induct)
 apply blast+
 done
@@ -256,5 +247,6 @@ proof (induct arbitrary: t' rule: big_step.induct)
   from c IHc have "s1' = s1" by blast
   with w IHw show "t' = t" by blast
 qed blast+ -- "prove the rest automatically"
+
 
 end

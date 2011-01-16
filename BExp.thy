@@ -4,9 +4,9 @@ subsection "Boolean Expressions"
 
 datatype bexp = B bool | Not bexp | And bexp bexp | Less aexp aexp
 
-primrec bval :: "bexp => state => bool" where
-"bval (B b) _ = b" |
-"bval (Not b) st = (~ bval b st)" |
+primrec bval :: "bexp \<Rightarrow> state \<Rightarrow> bool" where
+"bval (B bv) _ = bv" |
+"bval (Not b) st = (\<not> bval b st)" |
 "bval (And b1 b2) st = (if bval b1 st then bval b2 st else False)" |
 "bval (Less a1 a2) st = (aval a1 st < aval a2 st)"
 
@@ -17,7 +17,7 @@ subsection "Optimization"
 
 text{* Optimized constructors: *}
 
-fun less :: "aexp => aexp => bexp" where
+fun less :: "aexp \<Rightarrow> aexp \<Rightarrow> bexp" where
 "less (N n1) (N n2) = B(n1 < n2)" |
 "less a1 a2 = Less a1 a2"
 
@@ -26,7 +26,7 @@ apply(induct a1 a2 rule: less.induct)
 apply simp_all
 done
 
-fun "and" :: "bexp => bexp => bexp" where
+fun "and" :: "bexp \<Rightarrow> bexp \<Rightarrow> bexp" where
 "and (B True) b = b" |
 "and b (B True) = b" |
 "and (B False) b = B False" |
@@ -38,7 +38,7 @@ apply(induct b1 b2 rule: and.induct)
 apply simp_all
 done
 
-fun not :: "bexp => bexp" where
+fun not :: "bexp \<Rightarrow> bexp" where
 "not (B True) = B False" |
 "not (B False) = B True" |
 "not b = Not b"
@@ -50,7 +50,7 @@ done
 
 text{* Now the overall optimizer: *}
 
-fun bsimp :: "bexp => bexp" where
+fun bsimp :: "bexp \<Rightarrow> bexp" where
 "bsimp (Less a1 a2) = less (asimp a1) (asimp a2)" |
 "bsimp (And b1 b2) = and (bsimp b1) (bsimp b2)" |
 "bsimp (Not b) = not(bsimp b)" |
