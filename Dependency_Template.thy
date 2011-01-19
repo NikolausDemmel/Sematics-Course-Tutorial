@@ -31,7 +31,7 @@ where
   WhileSkip:  "influences x (WHILE b DO c) x" |
   WhileCond:  "\<lbrakk> y \<in> vars b; assigned c x \<rbrakk> \<Longrightarrow> influences y (WHILE b DO c) x" |
   WhileStep:  "\<lbrakk> influences y c x \<rbrakk> \<Longrightarrow> influences y (WHILE b DO c) x" |
-  WhileTrans: "\<lbrakk> influences y c z; influences z (WHILE b DO c) x \<rbrakk> 
+  WhileTrans: "\<lbrakk> influences y (WHILE b DO c) z; influences z c x \<rbrakk> 
                \<Longrightarrow> influences y (WHILE b DO c) x" (* this rule might cause trouble *)
 
 (* Is there a way to execute influences? 
@@ -50,7 +50,7 @@ where
    kind of heuristic of possible values for z. Maybe something like z is
    either y or x or in "assigned_vars c".
 
-   I assume here that the soundness proof is not effected by this
+   I assume here that the soundness proof might not effected by this
    shortcoming. We will see next week.
 
    Technical question: Is there some documentation on "code_pred"? I can
@@ -76,29 +76,29 @@ declare WhileTrans[simp del]
    might not have this shortcoming. *)
 
 lemma "influences 2 (WHILE b DO (0 ::= (V 1); 1 ::= (V 2))) 0"
-apply (rule WhileTrans[of _ _ 1])
+apply (rule WhileTrans[of _ _ _ 1])
+apply (rule WhileStep)
 apply (rule Semi[of _ _ 2])
 apply simp
 apply simp
-apply (rule WhileStep)
 apply (rule Semi[of _ _ 0]) 
 apply auto
 done
 
 lemma "influences 3 (WHILE b DO (0 ::= (V 1); 1 ::= (V 2); 2::= (V 3))) 0"
-apply (rule WhileTrans[of _ _ 2])
+apply (rule WhileTrans[of _ _ _ 1])
+apply (rule WhileTrans[of _ _ _ 2])
+apply (rule WhileStep)
 apply (rule Semi[of _ _ 3])
 apply (rule Semi[of _ _ 3])
 apply simp
 apply simp
 apply simp
-apply (rule WhileTrans[of _ _ 1])
 apply (rule Semi[of _ _ 1])
 apply (rule Semi[of _ _ 2])
 apply simp
 apply simp
 apply simp
-apply (rule WhileStep)
 apply (rule Semi[of _ _ 0])
 apply (rule Semi[of _ _ 0])
 apply auto
@@ -116,40 +116,81 @@ lemma deps_unassigned_keep:
 proof induct
 qed auto
 
+
+(* some other property that should hold, though i have trouble prooving it *)
 lemma deps_unassigned_neq:
   "\<not> assigned c x \<Longrightarrow> x \<noteq> y \<Longrightarrow> \<not> y \<in> deps c x"
 apply (induct arbitrary: y)
 apply auto
 apply metis
+apply (rule WhileE)
+apply auto
 proof -
   fix b c y
   {
-    assume "\<And> z. x\<noteq>z \<Longrightarrow> \<not> influences z c x"
-    assume "\<not> assigned c x"
-    assume "x \<noteq> y"
-    
-    have "\<not> influences y (WHILE b DO c) x"
-  } 
+    assume 0: "\<And> w. x\<noteq>w \<Longrightarrow> \<not> influences w c x"
+    assume 1: "\<not> assigned c x"
+    assume 2: "x \<noteq> y"
+    from 0 1 2 have "\<not> influences y (WHILE b DO c) x" sorry 
+    (* applying WhileE makes me go in circles *)
+  }
   from this show "\<lbrakk>\<And>z. x \<noteq> z \<Longrightarrow> \<not> influences z c x; \<not> assigned c x; x \<noteq> y;
     influences y (WHILE b DO c) x\<rbrakk> \<Longrightarrow> False" by blast
 qed
 
-
 lemma deps_unassigned_singelton:
   "\<not> assigned c x \<Longrightarrow> {x} = deps c x"
-
-
- 
-
-
+proof
+  assume "\<not> assigned c x"
+  with deps_unassigned_keep show "{x} \<subseteq> deps c x" by blast
+next
+  assume 0: "\<not> assigned c x"
+  show "deps c x \<subseteq> {x}"
+    proof 
+      fix a
+      assume 1: "a \<in> deps c x"
+      with 0 deps_unassigned_neq have 2: "a = x" by metis
+      {
+        fix t
+        have "t \<in> {t}" by (metis insertCI)
+      }
+      with 2 show "a \<in> {x}" by auto
+    qed
+qed
 
 
 text {* Main theorem *}
 
+(* might be useful *)
+lemma eq_on_subset: "\<lbrakk> s = s' on X; Y \<subseteq> X \<rbrakk> \<Longrightarrow> s = s' on Y" by auto
+
+(* generalized statement, maybe neccessary *)
+lemma "\<lbrakk> (c, s) \<Rightarrow> t; s = s' on X; (deps c x) \<subseteq> X; (c,s') \<Rightarrow> t' \<rbrakk> \<Longrightarrow> t x = t' x"
+proof (induct arbitrary: X  t t' rule: big_step_induct)
+  case Skip from this have ?case sorry
+  have "t' = s'"
+oops
+
 lemma deps_sound:
   "\<lbrakk> (c, s) \<Rightarrow> t; s = s' on deps c x; (c, s') \<Rightarrow> t' \<rbrakk>
    \<Longrightarrow> t x = t' x"
+proof (induct rule: big_step_induct)
+  case (Skip s)
+  thus ?case by blast
+next
+  case (Assign y a s)
+  thus ?case by auto
+next
+  case (IfTrue b s c1 t c2)
+  thus ?case
+    apply auto
+    apply (rule IfE)
+    apply auto
+    sorry
+next 
+  case (Semi c1 s1 s2 c2 s3)
+  thus ?case
+    apply auto
 oops
-
 
 end
