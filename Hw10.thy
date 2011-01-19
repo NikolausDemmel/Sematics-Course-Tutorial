@@ -1,4 +1,6 @@
-theory Dependency_Template
+header "Semantics homework sheet 10 part (a) - Nikolaus Demmel"
+
+theory Hw10
 imports Big_Step Vars
 begin
 
