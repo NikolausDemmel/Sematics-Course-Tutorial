@@ -22,19 +22,23 @@ text {* The dependency relation *}
 
 inductive influences :: "name \<Rightarrow> com \<Rightarrow> name \<Rightarrow> bool"
 where
-  Skip:       "influences x SKIP x" |
-  AssignEq:   "y \<in> (vars a) \<Longrightarrow> influences y (x ::= a) x" |
-  AssignNeq:  "y \<noteq> x \<Longrightarrow> influences y (x ::= a) y" |
-  Semi:       "\<lbrakk> influences y c1 z; influences z c2 x \<rbrakk> \<Longrightarrow> influences y (c1; c2) x" |
-  IfThen:     "influences y c1 x \<Longrightarrow> influences y (IF b THEN c1 ELSE c2) x" |
-  IfElse:     "influences y c2 x \<Longrightarrow> influences y (IF b THEN c1 ELSE c2) x" |
-  IfCondThen: "\<lbrakk> y \<in> vars b; assigned c1 x \<rbrakk> \<Longrightarrow> influences y (IF b THEN c1 ELSE c2) x" |
-  IfCondElse: "\<lbrakk> y \<in> vars b; assigned c2 x \<rbrakk> \<Longrightarrow> influences y (IF b THEN c1 ELSE c2) x" |
-  WhileSkip:  "influences x (WHILE b DO c) x" |
-  WhileCond:  "\<lbrakk> y \<in> vars b; assigned c x \<rbrakk> \<Longrightarrow> influences y (WHILE b DO c) x" |
-  WhileStep:  "\<lbrakk> influences y c x \<rbrakk> \<Longrightarrow> influences y (WHILE b DO c) x" |
-  WhileTrans: "\<lbrakk> influences y (WHILE b DO c) z; influences z c x \<rbrakk> 
+  Skip[intro]:       "influences x SKIP x" |
+  AssignEq[intro]:   "y \<in> (vars a) \<Longrightarrow> influences y (x ::= a) x" |
+  AssignNeq[intro]:  "y \<noteq> x \<Longrightarrow> influences y (x ::= a) y" |
+  Semi[intro]:       "\<lbrakk> influences y c1 z; influences z c2 x \<rbrakk> \<Longrightarrow> influences y (c1; c2) x" |
+  IfThen[intro]:     "influences y c1 x \<Longrightarrow> influences y (IF b THEN c1 ELSE c2) x" |
+  IfElse[intro]:     "influences y c2 x \<Longrightarrow> influences y (IF b THEN c1 ELSE c2) x" |
+  IfCondThen[intro]: "\<lbrakk> y \<in> vars b; assigned c1 x \<rbrakk> 
+                       \<Longrightarrow> influences y (IF b THEN c1 ELSE c2) x" |
+  IfCondElse[intro]: "\<lbrakk> y \<in> vars b; assigned c2 x \<rbrakk> 
+                       \<Longrightarrow> influences y (IF b THEN c1 ELSE c2) x" |
+  WhileSkip[intro]:  "influences x (WHILE b DO c) x" |
+  WhileCond[intro]:  "\<lbrakk> y \<in> vars b; assigned c x \<rbrakk> \<Longrightarrow> influences y (WHILE b DO c) x" |
+  WhileTrans:        "\<lbrakk> influences y c z; influences z (WHILE b DO c) x \<rbrakk> 
+                       \<Longrightarrow> influences y (WHILE b DO c) x"
+(*  WhileTrans: "\<lbrakk> influences y (WHILE b DO c) z; influences z c x \<rbrakk> 
                \<Longrightarrow> influences y (WHILE b DO c) x" (* this rule might cause trouble *)
+*)
 
 (* Is there a way to execute influences? 
 
@@ -66,9 +70,9 @@ inductive_cases SkipE[elim!]:   "influences y SKIP x"
 inductive_cases AssignE[elim!]: "influences y (z ::= a) x"
 inductive_cases SemiE[elim!]:   "influences y (c1; c2) x"
 inductive_cases IfE[elim!]:     "influences y (IF b THEN c1 ELSE c2) x"
-inductive_cases WhileE[elim]:   "influences y (WHILE b DO c) x"
-declare influences.intros[simp, intro]
-declare WhileTrans[simp del]
+inductive_cases WhileE:   "influences y (WHILE b DO c) x"
+(*declare influences.intros[simp]
+declare WhileTrans[simp del] *)
 
 
 (* Trying some examples. I have to proof manually. Automatic proof again
@@ -77,9 +81,10 @@ declare WhileTrans[simp del]
    'influences' there is not much we can do about that. A different definition
    might not have this shortcoming. *)
 
+(*
 lemma "influences 2 (WHILE b DO (0 ::= (V 1); 1 ::= (V 2))) 0"
-apply (rule WhileTrans[of _ _ _ 1])
-apply (rule WhileStep)
+apply (rule WhileTrans[of _ _ 1])
+apply (rule WhileTrans[)
 apply (rule Semi[of _ _ 2])
 apply simp
 apply simp
@@ -106,6 +111,8 @@ apply (rule Semi[of _ _ 0])
 apply auto
 done
 
+*)
+
 text {* All dependencies of a variable *}
 abbreviation deps :: "com \<Rightarrow> name \<Rightarrow> name set" where
 "deps c x == {y. influences y c x}"
@@ -118,21 +125,27 @@ lemma deps_unassigned_keep:
 proof induct
 qed auto
 
-
+(*
 (* some other property that should hold, though i have trouble prooving it *)
 lemma deps_unassigned_neq:
   "\<not> assigned c x \<Longrightarrow> x \<noteq> y \<Longrightarrow> \<not> y \<in> deps c x"
-apply (induct arbitrary: y)
+apply (induct arbitrary: y x)
 apply auto
 apply metis
-apply (rule WhileE)
-apply auto
 proof -
-  fix b c y
+  fix b c y x
   {
-    assume 0: "\<And> w. x\<noteq>w \<Longrightarrow> \<not> influences w c x"
+    assume 0: "\<And> w v. \<lbrakk> v\<noteq>w; \<not> assigned c v \<rbrakk> \<Longrightarrow> \<not> influences w c v"
     assume 1: "\<not> assigned c x"
     assume 2: "x \<noteq> y"
+    assume 3: "influences y (WHILE b DO c) x"
+(*    assume 4: "influences y c z"
+    assume 5: "influences z (WHILE b DO c) x" *)
+    from 0 1 2 have 4: "\<not> influences y c x" by blast
+    from 2 have "influences y (WHILE b DO c) x \<Longrightarrow> False" 
+    proof (induct y "(WHILE b DO c)" x rule: influences.induct)
+    
+    from 4 0  have "y = z" by blast
     from 0 1 2 have "\<not> influences y (WHILE b DO c) x" sorry 
     (* applying WhileE makes me go in circles *)
   }
@@ -159,40 +172,115 @@ next
       with 2 show "a \<in> {x}" by auto
     qed
 qed
-
+*)
 
 text {* Main theorem *}
 
 (* might be useful *)
 lemma eq_on_subset: "\<lbrakk> s = s' on X; Y \<subseteq> X \<rbrakk> \<Longrightarrow> s = s' on Y" by auto
 
+(*
 (* generalized statement, maybe neccessary *)
 lemma "\<lbrakk> (c, s) \<Rightarrow> t; s = s' on X; (deps c x) \<subseteq> X; (c,s') \<Rightarrow> t' \<rbrakk> \<Longrightarrow> t x = t' x"
 proof (induct arbitrary: X  t t' rule: big_step_induct)
   case Skip from this have ?case sorry
   have "t' = s'"
 oops
+*)
 
 lemma deps_sound:
   "\<lbrakk> (c, s) \<Rightarrow> t; s = s' on deps c x; (c, s') \<Rightarrow> t' \<rbrakk>
    \<Longrightarrow> t x = t' x"
-proof (induct rule: big_step_induct)
-  case (Skip s)
+proof (induct c s t arbitrary: x s' t' rule: big_step_induct)
+  case Skip 
   thus ?case by blast
 next
   case (Assign y a s)
-  thus ?case by auto
+  thus ?case
+  proof (cases "x = y")
+    case False
+    with Assign show ?thesis by auto
+  next
+    case True
+    hence "vars a = deps (y ::= a) x" by fastsimp
+    with Assign(1) have "aval a s' = aval a s" by fastsimp 
+    with Assign(2) have "t' y = (s'(y := aval a s)) y" by fastsimp
+    hence "t' y = aval a s" by fastsimp
+    with `x = y` show ?thesis by fastsimp
+  qed
+next
+  case (Semi c1 s s2 c2 t)
+  from Semi(6) obtain s2' where s2':"(c1, s') \<Rightarrow> s2' \<and> (c2, s2') \<Rightarrow> t'" by fastsimp
+  { fix w
+    assume "w \<in> deps c2 x"
+    hence "deps c1 w \<subseteq> deps (c1;c2) x" by fastsimp
+    with Semi(5) s2' Semi(2)[of w s' s2'] have "s2 w = s2' w" by fastsimp
+  }
+  hence "s2 = s2' on deps c2 x" by fastsimp
+  with Semi(4)[of x s2' t'] s2' show "t x = t' x" by fastsimp
 next
   case (IfTrue b s c1 t c2)
+  show ?case
+  proof (cases "assigned c1 x \<or> assigned c2 x")
+    case True
+    with IfTrue(4) have "s = s' on vars b" by fastsimp
+    hence "bval b s = bval b s'" by (simp add: bval_eq_if_eq_on_vars)
+    with IfTrue(1,5) have "(c1, s') \<Rightarrow> t'" by blast
+    thus "t x = t' x" using IfTrue(3-4) by blast
+  next
+    case False
+    hence "s x = s' x" using deps_unassigned_keep IfTrue(4) by fastsimp
+    moreover
+    from unassigned_implies_equal IfTrue(2) False have "s x = t x" by fastsimp
+    moreover
+    from unassigned_implies_equal IfTrue(5) False have "s' x = t' x" by fastsimp
+    ultimately
+    show "t x = t' x" by simp
+  qed
+next
+  case (IfFalse b s c2 t c1)
+  show ?case
+  proof (cases "assigned c1 x \<or> assigned c2 x")
+    case True
+    with IfFalse(4) have "s = s' on vars b" by fastsimp
+    hence "bval b s = bval b s'" by (simp add: bval_eq_if_eq_on_vars)
+    with IfFalse(1,5) have "(c2, s') \<Rightarrow> t'" by blast
+    thus "t x = t' x" using IfFalse(3-4) by blast
+  next
+    case False
+    hence "s x = s' x" using deps_unassigned_keep IfFalse(4) by fastsimp
+    moreover
+    from unassigned_implies_equal IfFalse(2) False have "s x = t x" by fastsimp
+    moreover
+    from unassigned_implies_equal IfFalse(5) False have "s' x = t' x" by fastsimp
+    ultimately
+    show "t x = t' x" by simp
+  qed
+next
+  case (WhileFalse b s c)
   thus ?case
-    apply auto
-    apply (rule IfE)
-    apply auto
-    sorry
-next 
-  case (Semi c1 s1 s2 c2 s3)
+  proof (cases "assigned c x")
+    case True
+    with WhileFalse(2) have "s = s' on vars b" by fastsimp
+    hence "bval b s = bval b s'" by (simp add: bval_eq_if_eq_on_vars)
+    with WhileFalse(1,3) have "s' = t'" by fastsimp
+    with WhileFalse(2) show "s x = t' x" by fastsimp
+  next
+    case False
+    with unassigned_implies_equal WhileFalse(2,3) deps_unassigned_keep
+      show "s x = t' x" by simp
+  qed
+next
+  case (WhileTrue b s c s2 t)
   thus ?case
-    apply auto
-oops
+  proof (cases "assigned c x")
+    case True
+    with WhileTrue(6) have "s = s' on vars b" by blast
+    hence "bval b s = bval b s'" by (simp add: bval_eq_if_eq_on_vars)
+    with WhileTrue(1,7) obtain s2' where "(c, s') \<Rightarrow> s2' \<and> (WHILE b DO c, s2') \<Rightarrow> t'" by blast
+    
+
+. 
+
 
 end
