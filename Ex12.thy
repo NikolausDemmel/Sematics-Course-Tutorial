@@ -1,5 +1,5 @@
 theory Ex12_Template
-imports VC GCD
+imports "../Thys/VC" GCD
 begin
 
 section {* A nicer notation for annotated programs *}
@@ -15,7 +15,7 @@ text {* A convenient loop construct: *}
 
 abbreviation Afor :: "name \<Rightarrow> aexp \<Rightarrow> aexp \<Rightarrow> assn \<Rightarrow> acom \<Rightarrow> acom"
   ("(FOR _/ FROM _/ TO _/ _/ DO _)"  [0, 0, 0, 0, 61] 61) where
-  "FOR v FROM a1 TO a2 b DO c =
+  "FOR v FROM a1 TO a2 b DO c \<equiv>
      (v #= a1 ;; WHILE' (Less (V v) a2) b DO (c ;; v #= Plus (V v) (N 1)))"
 
 
@@ -63,15 +63,15 @@ abbreviation Eq where "Eq a1 a2 \<equiv> And (Not (Less a1 a2)) (Not (Less a2 a1
 
 
 
-definition SUB :: "name \<Rightarrow> name \<Rightarrow> name \<Rightarrow> acom" where
-  "SUB a b c = SKIP"  (* provide a definition *)
+definition SUB :: "acom" where
+  "SUB = SKIP"  (* provide a definition *)
  
 lemma SUB_sound: "vc SUB (\<lambda>s. s 2 = s 0 - s 1) s"
   oops  (* provide a proof *)
 
 
 
-definition EUCLID where
+definition EUCLID :: "acom" where
   "EUCLID = SKIP"  (* provide a definition *)
 
 lemma EUCLID_sound: "vc EUCLID (\<lambda>s. s 2 = gcd (s 0) (s 1)) s"
